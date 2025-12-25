@@ -7,6 +7,7 @@ import asyncio
 import queue
 import time
 from pathlib import Path
+import sys
 from threading import Thread
 
 import numpy as np
@@ -14,6 +15,10 @@ from av import AudioFrame
 
 from basereal import BaseReal
 from logger import logger
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from adapters import LiveTalkingAdapter, MusetalkAdapter
 
