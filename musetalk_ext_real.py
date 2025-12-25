@@ -104,6 +104,17 @@ class MusetalkExtReal(BaseReal):
         video_output = LiveTalkingAdapter(video_track, loop)
 
         def _run():
+            frame_count = 0
+            last_log = time.time()
+            # Push a short silence warmup so the UI shows a frame immediately.
+            silence = np.zeros(self.chunk, dtype=np.float32)
+            for _ in range(5):
+                pcm16 = (silence * 32767).astype(np.int16)
+                self._engine.push_audio(pcm16)
+                for frame in self._engine.generate():
+                    video_output.send(frame, time.time())
+                    frame_count += 1
+                time.sleep(0.02)
             while not quit_event.is_set():
                 try:
                     chunk, eventpoint = self._audio_queue.get(timeout=0.1)
@@ -122,6 +133,13 @@ class MusetalkExtReal(BaseReal):
 
                 for frame in self._engine.generate():
                     video_output.send(frame, time.time())
+                    frame_count += 1
+
+                if time.time() - last_log > 2.0:
+                    if frame_count > 0:
+                        logger.info("musetalk_ext sent %d frames", frame_count)
+                        frame_count = 0
+                    last_log = time.time()
 
                 if video_track._queue.qsize() > 50:
                     time.sleep(0.01)
