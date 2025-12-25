@@ -73,6 +73,9 @@ def build_nerfreal(sessionid:int)->BaseReal:
     elif opt.model == 'musetalk':
         from musereal import MuseReal
         nerfreal = MuseReal(opt,model,avatar)
+    elif opt.model == 'musetalk_ext':
+        from musetalk_ext_real import MusetalkExtReal
+        nerfreal = MusetalkExtReal(opt,model,avatar)
     # elif opt.model == 'ernerf':
     #     from nerfreal import NeRFReal
     #     nerfreal = NeRFReal(opt,model,avatar)
@@ -149,6 +152,10 @@ async def human(request):
         if params.get('interrupt'):
             nerfreals[sessionid].flush_talk()
 
+        emotion_preset = params.get("emotion_preset")
+        if emotion_preset and hasattr(nerfreals[sessionid], "set_emotion_preset"):
+            nerfreals[sessionid].set_emotion_preset(emotion_preset)
+
         if params['type']=='echo':
             nerfreals[sessionid].put_msg_txt(params['text'])
         elif params['type']=='chat':
@@ -199,6 +206,9 @@ async def humanaudio(request):
         fileobj = form["file"]
         filename=fileobj.filename
         filebytes=fileobj.file.read()
+        emotion_preset = form.get("emotion_preset")
+        if emotion_preset and hasattr(nerfreals[sessionid], "set_emotion_preset"):
+            nerfreals[sessionid].set_emotion_preset(emotion_preset)
         nerfreals[sessionid].put_audio_file(filebytes)
 
         return web.Response(
@@ -329,6 +339,8 @@ if __name__ == '__main__':
 
     #musetalk opt
     parser.add_argument('--avatar_id', type=str, default='avator_1', help="define which avatar in data/avatars")
+    parser.add_argument('--musetalk_ext_avatar_dir', type=str, default='', help="override musetalk_ext avatar dir")
+    parser.add_argument('--musetalk_ext_device', type=str, default='', help="musetalk_ext device (cuda|cpu)")
     #parser.add_argument('--bbox_shift', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=16, help="infer batch")
 
@@ -341,7 +353,7 @@ if __name__ == '__main__':
     # parser.add_argument('--CHARACTER', type=str, default='test')
     # parser.add_argument('--EMOTION', type=str, default='default')
 
-    parser.add_argument('--model', type=str, default='musetalk') #musetalk wav2lip ultralight
+    parser.add_argument('--model', type=str, default='musetalk') #musetalk musetalk_ext wav2lip ultralight
 
     parser.add_argument('--transport', type=str, default='rtcpush') #webrtc rtcpush virtualcam
     parser.add_argument('--push_url', type=str, default='http://localhost:1985/rtc/v1/whip/?app=live&stream=livestream') #rtmp://localhost/live/livestream
@@ -367,6 +379,10 @@ if __name__ == '__main__':
         model = load_model()
         avatar = load_avatar(opt.avatar_id) 
         warm_up(opt.batch_size,model)      
+    elif opt.model == 'musetalk_ext':
+        logger.info(opt)
+        model = None
+        avatar = None
     elif opt.model == 'wav2lip':
         from lipreal import LipReal,load_model,load_avatar,warm_up
         logger.info(opt)
