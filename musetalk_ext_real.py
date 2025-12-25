@@ -116,24 +116,30 @@ class MusetalkExtReal(BaseReal):
                     frame_count += 1
                 time.sleep(0.02)
             while not quit_event.is_set():
+                got_audio = False
                 try:
-                    chunk, eventpoint = self._audio_queue.get(timeout=0.1)
+                    chunk, eventpoint = self._audio_queue.get(timeout=0.02)
+                    got_audio = True
                 except queue.Empty:
-                    continue
+                    chunk = None
+                    eventpoint = None
 
-                pcm16 = np.clip(chunk, -1.0, 1.0)
-                pcm16 = (pcm16 * 32767).astype(np.int16)
-                self._engine.push_audio(pcm16)
+                if got_audio:
+                    pcm16 = np.clip(chunk, -1.0, 1.0)
+                    pcm16 = (pcm16 * 32767).astype(np.int16)
+                    self._engine.push_audio(pcm16)
 
-                if audio_track is not None:
-                    frame = AudioFrame(format="s16", layout="mono", samples=pcm16.shape[0])
-                    frame.planes[0].update(pcm16.tobytes())
-                    frame.sample_rate = 16000
-                    asyncio.run_coroutine_threadsafe(audio_track._queue.put((frame, eventpoint)), loop)
+                    if audio_track is not None:
+                        frame = AudioFrame(format="s16", layout="mono", samples=pcm16.shape[0])
+                        frame.planes[0].update(pcm16.tobytes())
+                        frame.sample_rate = 16000
+                        asyncio.run_coroutine_threadsafe(audio_track._queue.put((frame, eventpoint)), loop)
 
+                drained = False
                 for frame in self._engine.generate():
                     video_output.send(frame, time.time())
                     frame_count += 1
+                    drained = True
 
                 if time.time() - last_log > 2.0:
                     if frame_count > 0:
@@ -143,6 +149,8 @@ class MusetalkExtReal(BaseReal):
 
                 if video_track._queue.qsize() > 50:
                     time.sleep(0.01)
+                if not got_audio and not drained:
+                    time.sleep(0.005)
 
         thread = Thread(target=_run, daemon=True)
         thread.start()
